@@ -1,0 +1,96 @@
+plugins {
+    // Official NeoForge tooling for 1.21.x (ModDevGradle).
+    id 'net.neoforged.moddev' version '2.0.78'
+}
+
+version = "${mod_version}"
+group = "${mod_group_id}"
+
+base {
+    archivesName = "${mod_id}-${minecraft_version}"
+}
+
+java {
+    // Minecraft 1.21.1 targets Java 21.
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+repositories {
+    mavenCentral()
+    // CurseMaven lets us pull mod jars (and their file ids) straight from CurseForge.
+    // Transitive dependencies are NOT resolved automatically here, so every mod we
+    // compile against is listed explicitly below.
+    maven {
+        name = 'CurseMaven'
+        url = 'https://cursemaven.com'
+        content { includeGroup 'curse.maven' }
+    }
+    // Fallback maven that hosts Curios / GeckoLib jars.
+    maven { url = 'https://maven.blamejared.com' }
+}
+
+neoForge {
+    version = "${neo_version}"
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+dependencies {
+    // --- Iron's Spells 'n Spellbooks and the deps its API pulls in ---------------
+    // Fill the *_curse_file properties in gradle.properties with real CurseForge file
+    // ids (or swap these for whatever maven coordinates you prefer). See README.md.
+    // The guards let the project sync/configure even before you've filled the ids in;
+    // it simply won't compile against ISS until they're set.
+    if ((findProperty('irons_spellbooks_curse_file') ?: '0').toString().toInteger() > 0) {
+        implementation "curse.maven:irons-spells-n-spellbooks-855414:${irons_spellbooks_curse_file}"
+    }
+    if ((findProperty('geckolib_curse_file') ?: '0').toString().toInteger() > 0) {
+        implementation "curse.maven:geckolib-388172:${geckolib_curse_file}"
+    }
+    if ((findProperty('curios_curse_file') ?: '0').toString().toInteger() > 0) {
+        implementation "curse.maven:curios-309927:${curios_curse_file}"
+    }
+}
+
+// Populate the placeholders in src/main/templates/META-INF/neoforge.mods.toml at build time.
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version             : minecraft_version,
+            minecraft_version_range       : minecraft_version_range,
+            neo_version                   : neo_version,
+            neo_version_range             : neo_version_range,
+            loader_version_range          : loader_version_range,
+            mod_id                        : mod_id,
+            mod_name                      : mod_name,
+            mod_license                   : mod_license,
+            mod_version                   : mod_version,
+            mod_authors                   : mod_authors,
+            mod_description               : mod_description,
+            irons_spellbooks_id           : irons_spellbooks_id,
+            irons_spellbooks_version_range: irons_spellbooks_version_range,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

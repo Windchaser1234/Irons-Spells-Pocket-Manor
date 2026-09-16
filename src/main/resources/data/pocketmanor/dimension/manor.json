@@ -1,0 +1,15 @@
+{
+  "type": "pocketmanor:manor",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "biome": "minecraft:the_void",
+      "lakes": false,
+      "features": false,
+      "structures": { "structures": {} },
+      "layers": [
+        { "height": 1, "block": "minecraft:air" }
+      ]
+    }
+  }
+}

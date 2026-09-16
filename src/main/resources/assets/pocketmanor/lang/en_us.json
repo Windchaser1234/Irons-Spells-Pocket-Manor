@@ -1,0 +1,8 @@
+{
+  "spell.pocketmanor.pocket_manor": "Pocket Manor",
+
+  "ui.pocketmanor.pocket_manor.info": "Warps you to a grand shared manor in its own dimension.",
+  "ui.pocketmanor.pocket_manor.info2": "Cast again inside the manor to return where you came from.",
+
+  "ui.pocketmanor.no_dimension": "The manor dimension could not be found."
+}
