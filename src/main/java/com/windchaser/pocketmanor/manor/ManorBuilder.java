@@ -1,25 +1,47 @@
 package com.windchaser.pocketmanor.manor;
 
+import com.windchaser.pocketmanor.PocketManor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.Optional;
+
 /**
- * Generates the shared manor once, into the empty (void) manor dimension.
+ * Puts the shared manor into the empty (void) manor dimension, exactly once per world.
  *
- * <p>The build is centered on the origin and floats on its own foundation at {@link #FLOOR_Y}.
- * It is deliberately larger and more furnished than a plain pocket-dimension room: a walled manor
- * with a grand central hall, a library wing, and a kitchen/bedroom wing, all lit so nothing spawns.
+ * <p>Two sources, in priority order:
+ * <ol>
+ *   <li><b>A designed structure</b> - if the datapack contains a structure template at
+ *       {@code data/pocketmanor/structure/manor.nbt} (i.e. a build you saved in-game with a
+ *       Structure Block), it is stamped into the world at {@link #STRUCTURE_ORIGIN}. See
+ *       {@code DESIGN.md}. This is the intended way to design the manor.</li>
+ *   <li><b>A coded fallback</b> - if no such structure ships in the jar, the procedural manor
+ *       below is generated instead, so the mod always produces a usable manor out of the box.</li>
+ * </ol>
  *
- * <p>All placement uses flag {@code 2} (send to clients, skip neighbor updates) which is the right
- * choice for bulk world edits - it keeps generation cheap and avoids cascading block updates.
+ * <p>All procedural placement uses flag {@code 2} (send to clients, skip neighbor updates) which is
+ * the right choice for bulk world edits - cheap, and avoids cascading block updates.
  */
 public final class ManorBuilder {
+    /** Datapack id of the player-designed structure (optional). */
+    public static final ResourceLocation STRUCTURE_ID =
+            ResourceLocation.fromNamespaceAndPath(PocketManor.MOD_ID, "manor");
+
+    /** The world position the structure's (0,0,0) corner is placed at. */
+    private static final BlockPos STRUCTURE_ORIGIN = new BlockPos(0, 64, 0);
+
     private static final int FLOOR_Y = 64;
     private static final int WALL_TOP = FLOOR_Y + 8;      // walls occupy FLOOR_Y+1 .. WALL_TOP
     private static final int CEIL_Y = WALL_TOP + 1;       // solid ceiling
@@ -31,12 +53,19 @@ public final class ManorBuilder {
     private static final int TX = 28;
     private static final int TZ = 20;
 
+    /** Landing spot used by the coded fallback manor. */
+    private static final Vec3 FALLBACK_ENTRANCE = new Vec3(0.5, FLOOR_Y + 1, 12.5);
+
     private ManorBuilder() {
     }
 
-    /** Where a player materializes when entering the manor. */
-    public static Vec3 entrancePos() {
-        return new Vec3(0.5, FLOOR_Y + 1, 12.5);
+    /** Where a player materializes when entering the manor (resolved at build time). */
+    public static Vec3 entrancePos(ServerLevel manor) {
+        ManorSavedData data = ManorSavedData.get(manor);
+        if (data.hasEntrance) {
+            return new Vec3(data.entranceX, data.entranceY, data.entranceZ);
+        }
+        return FALLBACK_ENTRANCE;
     }
 
     public static void ensureBuilt(ServerLevel manor) {
@@ -44,12 +73,61 @@ public final class ManorBuilder {
         if (data.built) {
             return;
         }
-        build(manor);
+
+        Vec3 entrance = placeDesignedStructure(manor);
+        if (entrance == null) {
+            buildFallback(manor);
+            entrance = FALLBACK_ENTRANCE;
+        }
+
+        data.entranceX = entrance.x;
+        data.entranceY = entrance.y;
+        data.entranceZ = entrance.z;
+        data.hasEntrance = true;
         data.built = true;
         data.setDirty();
     }
 
-    private static void build(ServerLevel l) {
+    /**
+     * Places the player-designed structure if one is shipped in the datapack.
+     *
+     * @return the arrival position (one block above the first Lodestone in the build, or the
+     *         build's horizontal center if there is none), or {@code null} if no structure exists.
+     */
+    private static Vec3 placeDesignedStructure(ServerLevel manor) {
+        StructureTemplateManager manager = manor.getStructureManager();
+        Optional<StructureTemplate> maybeTemplate = manager.get(STRUCTURE_ID);
+        if (maybeTemplate.isEmpty()) {
+            return null;
+        }
+
+        StructureTemplate template = maybeTemplate.get();
+        StructurePlaceSettings settings = new StructurePlaceSettings();
+        template.placeInWorld(manor, STRUCTURE_ORIGIN, STRUCTURE_ORIGIN, settings,
+                manor.getRandom(), Block.UPDATE_CLIENTS);
+
+        Vec3i size = template.getSize();
+
+        // Prefer an explicit arrival marker: the first Lodestone found in the build.
+        for (int y = 0; y < size.getY(); y++) {
+            for (int x = 0; x < size.getX(); x++) {
+                for (int z = 0; z < size.getZ(); z++) {
+                    BlockPos pos = STRUCTURE_ORIGIN.offset(x, y, z);
+                    if (manor.getBlockState(pos).is(Blocks.LODESTONE)) {
+                        return new Vec3(pos.getX() + 0.5, pos.getY() + 1, pos.getZ() + 0.5);
+                    }
+                }
+            }
+        }
+
+        // No marker: drop the player in at the horizontal center, just above the base layer.
+        return new Vec3(
+                STRUCTURE_ORIGIN.getX() + size.getX() / 2.0,
+                STRUCTURE_ORIGIN.getY() + 1,
+                STRUCTURE_ORIGIN.getZ() + size.getZ() / 2.0);
+    }
+
+    private static void buildFallback(ServerLevel l) {
         BlockState stoneBricks = Blocks.STONE_BRICKS.defaultBlockState();
         BlockState chiseled = Blocks.CHISELED_STONE_BRICKS.defaultBlockState();
         BlockState smoothStone = Blocks.SMOOTH_STONE.defaultBlockState();

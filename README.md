@@ -20,7 +20,8 @@ remembered across relogs and death).
 | --- | --- |
 | The manor | A custom dimension `pocketmanor:manor`, defined by datapack JSON shipped in the jar (`data/pocketmanor/dimension/manor.json` + `.../dimension_type/manor.json`). It generates as an empty void; the building is placed by code. |
 | "One manor per world, shared" | A dimension is world-global, so pointing everyone at the single `pocketmanor:manor` key means one shared manor. |
-| "Larger than a pocket dimension" | `ManorBuilder` constructs a walled 49×33 manor (grand hall + library wing + kitchen/bedroom wing), lit so nothing spawns. |
+| "Larger than a pocket dimension" | `ManorBuilder` places the manor: your own saved build if `data/pocketmanor/structure/manor.nbt` is present, otherwise a coded walled 49×33 manor (grand hall + library + kitchen/bedroom), lit so nothing spawns. |
+| Designing your own manor | Build it in-game, save it with a Structure Block named `pocketmanor:manor`, drop the `.nbt` into the mod. See **[DESIGN.md](DESIGN.md)**. |
 | Built only once | `ManorSavedData` (a `SavedData` on the manor level) records a `built` flag that persists with the world, so the manor is generated a single time and never regenerated. |
 | The spell | `PocketManorSpell extends AbstractSpell` (Iron's Spells API), registered through our own `DeferredRegister` hung off `SpellRegistry.SPELL_REGISTRY_KEY`. ENDER school, EPIC rarity, a 3-second channeled (`LONG`) cast. |
 | Teleport + return | `ManorManager` toggles you in/out and stores your return point in the player's persisted NBT. Dimension travel uses `ServerPlayer#changeDimension(DimensionTransition)` — the same call the base mod's Recall spell uses. |

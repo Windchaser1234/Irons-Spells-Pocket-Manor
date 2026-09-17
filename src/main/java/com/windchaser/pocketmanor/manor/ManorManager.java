@@ -73,7 +73,7 @@ public final class ManorManager {
             setData(player, data);
 
             player.changeDimension(new DimensionTransition(
-                    manorLevel, ManorBuilder.entrancePos(), Vec3.ZERO,
+                    manorLevel, ManorBuilder.entrancePos(manorLevel), Vec3.ZERO,
                     180f, 0f, DimensionTransition.DO_NOTHING));
         } else {
             // In the manor but no stored return (e.g. died inside): fall back to overworld spawn.
